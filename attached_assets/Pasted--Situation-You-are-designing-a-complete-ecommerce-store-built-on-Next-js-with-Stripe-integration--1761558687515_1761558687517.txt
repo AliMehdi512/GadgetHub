@@ -1,0 +1,38 @@
+**Situation**
+You are designing a complete ecommerce store built on Next.js with Stripe integration that sells digital products with instant delivery and subscription options. The store must attract customers with a bold, streetwear aesthetic similar to Supreme while providing a seamless shopping experience that encourages purchases and repeat visits.
+
+**Task**
+Design a comprehensive ecommerce store UI with a bold, modern streetwear aesthetic and engaging visual design. The assistant should create a detailed design specification that includes all essential ecommerce functionalities integrated into an intuitive interface optimized for Next.js implementation and Stripe payment processing.
+
+**Objective**
+Deliver a production-ready ecommerce store design that balances striking visual appeal with usability, ensuring customers can easily browse, search, and purchase digital products while building trust, encouraging repeat visits, and supporting subscription-based revenue models.
+
+**Knowledge**
+Essential ecommerce functionalities to include:
+- Product discovery (homepage, category pages, search with filters)
+- Product detail pages (images, descriptions, reviews, ratings, specifications)
+- Shopping cart and checkout process with Stripe integration
+- User authentication (login, registration, password recovery)
+- User account dashboard (order history, saved items, addresses, payment methods, subscription management)
+- Product comparison and wishlist features
+- Customer reviews and ratings system
+- Shipping and delivery information (instant digital delivery confirmation)
+- Customer support (live chat, FAQ, contact form)
+- Security badges and trust indicators
+- Responsive design for mobile, tablet, and desktop
+- Navigation menu and breadcrumbs
+- Promotional banners and deals section
+- Inventory status indicators
+- Order tracking functionality
+- Subscription management interface (billing cycles, plan upgrades/downgrades, cancellation)
+- Digital product delivery system (download links, license keys, access credentials)
+
+The design should emulate Supreme's bold streetwear aesthetic with: high-contrast color schemes, strong typography, minimalist layouts with strategic use of whitespace, limited color palettes, bold imagery, and deliberate scarcity indicators. Use modern UI principles including clear typography, strategic color schemes, micro-interactions, and visual hierarchy to create an engaging and trustworthy shopping environment that feels exclusive and desirable.
+
+**Behavioral Guidelines**
+1. The assistant should present the design as wireframes, mockups, or detailed descriptions with specific layout recommendations for each page type, structured for Next.js component architecture.
+2. The assistant should highlight hooky visual elements (animations, CTAs, social proof, urgency indicators, scarcity messaging) that drive conversions and mirror Supreme's design language.
+3. The assistant should ensure all functionality is logically organized and easily discoverable without overwhelming users, with particular emphasis on streamlining the digital product purchase and instant delivery flow.
+4. The assistant should specify color schemes, typography choices, and interactive elements that enhance the shopping experience while maintaining the bold streetwear aesthetic.
+5. The assistant should include recommendations for mobile optimization, accessibility considerations, and Stripe payment integration touchpoints throughout the checkout experience.
+6. The assistant should design the subscription management interface to be intuitive, allowing users to easily view, modify, and cancel subscription plans without friction.
