@@ -5,29 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Lock, Download } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 export default function Checkout() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [processing, setProcessing] = useState(false);
-
-  // Redirect if not authenticated
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      toast({
-        title: "Authentication Required",
-        description: "Please log in to continue with checkout",
-        variant: "destructive",
-      });
-      setTimeout(() => {
-        window.location.href = "/api/login";
-      }, 500);
-    }
-  }, [isAuthenticated, isLoading, toast]);
 
   // Mock cart items
   const cartItems = [
@@ -66,16 +53,9 @@ export default function Checkout() {
     }, 2000);
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-background">
+    <ProtectedRoute>
+      <div className="min-h-screen bg-background">
       <Header cartItemCount={cartItems.length} onCartClick={() => {}} />
 
       <div className="pt-24 pb-16">
@@ -194,6 +174,7 @@ export default function Checkout() {
       </div>
 
       <Footer />
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }

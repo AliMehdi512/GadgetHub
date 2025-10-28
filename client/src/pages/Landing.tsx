@@ -12,6 +12,7 @@ import { CartDrawer } from "@/components/CartDrawer";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Product, Category, CartItem } from "@shared/schema";
+import { motion } from "framer-motion";
 
 export default function Landing() {
   const [cartOpen, setCartOpen] = useState(false);
@@ -202,13 +203,13 @@ export default function Landing() {
       />
 
       {/* Hero Section */}
-      <Hero
-        title="ELEVATE YOUR CRAFT"
-        subtitle="Premium digital products for creators"
-        ctaText="Shop Now"
-        ctaLink="/shop"
-        backgroundImage="https://images.unsplash.com/photo-1618005198919-d3d4b5a92ead?w=2000&q=80"
-      />
+          <Hero
+            title="GADGET HUB"
+            subtitle="Premium tech gadgets and digital products for creators"
+            ctaText="Explore Gadgets"
+            ctaLink="/shop"
+            backgroundImage="https://images.unsplash.com/photo-1618005198919-d3d4b5a92ead?w=2000&q=80"
+          />
 
       {/* Flash Sale Banner */}
       <div className="bg-accent text-accent-foreground py-4">
@@ -227,11 +228,21 @@ export default function Landing() {
       <section className="py-16 sm:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-4xl sm:text-5xl font-heading font-bold uppercase mb-4">
-              Featured Products
-            </h2>
+            <motion.h2 
+              className="text-4xl sm:text-5xl font-heading font-bold uppercase mb-4"
+              style={{
+                background: "linear-gradient(45deg, #ff0000, #ff8000, #ffff00, #80ff00, #00ff80, #00ffff, #0080ff, #8000ff, #ff0080)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                backgroundSize: "400% 400%",
+                animation: "rainbow 3s ease infinite"
+              }}
+            >
+              Featured Gadgets
+            </motion.h2>
             <p className="text-muted-foreground text-lg">
-              Hand-picked digital products for professionals
+              Hand-picked tech gadgets and digital products for professionals
             </p>
           </div>
 
@@ -244,10 +255,10 @@ export default function Landing() {
           <div className="text-center mt-12">
             <Link href="/shop">
               <a>
-                <Button size="lg" className="uppercase font-bold tracking-wide" data-testid="button-view-all">
-                  View All Products
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
+                    <Button size="lg" className="uppercase font-bold tracking-wide" data-testid="button-view-all">
+                      View All Gadgets
+                      <ArrowRight className="ml-2 h-5 w-5" />
+                    </Button>
               </a>
             </Link>
           </div>
@@ -318,21 +329,32 @@ export default function Landing() {
       <section className="py-24 bg-primary text-primary-foreground">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-5xl sm:text-6xl font-heading font-bold uppercase mb-6">
-            Ready to Start Creating?
+            Ready to Explore Gadgets?
           </h2>
           <p className="text-xl mb-8 opacity-90">
-            Join 10,000+ creators using our premium digital products
+            Join 10,000+ tech enthusiasts using our premium gadgets and digital products
           </p>
-          <a href="/api/login" data-testid="link-cta-login">
-            <Button
-              size="lg"
-              variant="secondary"
-              className="uppercase font-bold tracking-wide text-lg px-12 py-8"
-            >
-              Get Started
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-          </a>
+          <Button
+            size="lg"
+            variant="secondary"
+            className="uppercase font-bold tracking-wide text-lg px-12 py-8"
+            onClick={() => {
+              // Simple local login - in a real app you'd want a proper login form
+              const email = prompt("Enter your email for demo:");
+              const name = prompt("Enter your name for demo:");
+              if (email) {
+                fetch("/api/auth/login", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ email, name }),
+                }).then(() => window.location.reload());
+              }
+            }}
+            data-testid="button-cta-login"
+          >
+            Get Started
+            <ArrowRight className="ml-2 h-5 w-5" />
+          </Button>
         </div>
       </section>
 

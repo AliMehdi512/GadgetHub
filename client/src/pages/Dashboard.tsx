@@ -7,28 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Download, Package, Calendar, CreditCard } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Dashboard() {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [cartOpen, setCartOpen] = useState(false);
-
-  // Redirect to login if not authenticated
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      toast({
-        title: "Unauthorized",
-        description: "You are logged out. Logging in again...",
-        variant: "destructive",
-      });
-      setTimeout(() => {
-        window.location.href = "/api/login";
-      }, 500);
-      return;
-    }
-  }, [isAuthenticated, isLoading, toast]);
 
   // Mock orders data
   const orders = [
@@ -71,16 +57,9 @@ export default function Dashboard() {
     },
   ];
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-background">
+    <ProtectedRoute>
+      <div className="min-h-screen bg-background">
       <Header cartItemCount={0} onCartClick={() => setCartOpen(true)} />
       <CartDrawer
         isOpen={cartOpen}
@@ -303,6 +282,7 @@ export default function Dashboard() {
       </div>
 
       <Footer />
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }

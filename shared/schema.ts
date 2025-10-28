@@ -2,38 +2,42 @@ import { sql } from 'drizzle-orm';
 import { relations } from 'drizzle-orm';
 import {
   index,
-  jsonb,
+  uniqueIndex,
   pgTable,
-  timestamp,
   varchar,
-  text,
-  integer,
+  timestamp,
   decimal,
   boolean,
+  text,
+  integer,
+  uuid,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Session storage table for Replit Auth
+// Session storage table for local auth
 export const sessions = pgTable(
   "sessions",
   {
-    sid: varchar("sid").primaryKey(),
+    sid: varchar("sid", { length: 255 }).primaryKey(),
     sess: jsonb("sess").notNull(),
     expire: timestamp("expire").notNull(),
   },
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
-// User storage table for Replit Auth
+// User storage table for local auth
 export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: varchar("email").unique(),
-  firstName: varchar("first_name"),
-  lastName: varchar("last_name"),
-  profileImageUrl: varchar("profile_image_url"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: varchar("email", { length: 255 }).unique().notNull(),
+  firstName: varchar("first_name", { length: 100 }),
+  lastName: varchar("last_name", { length: 100 }),
+  profileImageUrl: text("profile_image_url"),
+  role: varchar("role", { length: 20 }).default("user").notNull(), // 'user' or 'admin'
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -47,47 +51,45 @@ export type User = typeof users.$inferSelect;
 
 // Categories table
 export const categories = pgTable("categories", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: uuid("id").primaryKey().defaultRandom(),
   name: varchar("name", { length: 100 }).notNull(),
   slug: varchar("slug", { length: 100 }).notNull().unique(),
   description: text("description"),
-  imageUrl: varchar("image_url"),
-  createdAt: timestamp("created_at").defaultNow(),
+  imageUrl: text("image_url"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const categoriesRelations = relations(categories, ({ many }) => ({
   products: many(products),
 }));
 
-export const insertCategorySchema = createInsertSchema(categories).omit({
-  id: true,
-  createdAt: true,
-});
-
-export type InsertCategory = z.infer<typeof insertCategorySchema>;
 export type Category = typeof categories.$inferSelect;
+export type InsertCategory = typeof categories.$inferInsert;
 
 // Products table
 export const products = pgTable("products", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: varchar("name", { length: 200 }).notNull(),
-  slug: varchar("slug", { length: 200 }).notNull().unique(),
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull(),
+  slug: varchar("slug", { length: 255 }).notNull().unique(),
   description: text("description"),
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
-  categoryId: varchar("category_id").references(() => categories.id),
-  imageUrl: varchar("image_url").notNull(),
-  images: text("images").array().default(sql`ARRAY[]::text[]`),
-  stockCount: integer("stock_count").default(0),
-  isDigital: boolean("is_digital").default(true),
-  downloadUrl: varchar("download_url"),
-  licenseKey: varchar("license_key"),
-  isFeatured: boolean("is_featured").default(false),
-  isLimitedEdition: boolean("is_limited_edition").default(false),
-  viewCount: integer("view_count").default(0),
-  averageRating: decimal("average_rating", { precision: 3, scale: 2 }).default("0"),
-  reviewCount: integer("review_count").default(0),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  categoryId: uuid("category_id").references(() => categories.id),
+  imageUrl: text("image_url").notNull(),
+  images: text("images").array(), // Array of image URLs
+  stockCount: integer("stock_count").default(0).notNull(),
+  salesCount: integer("sales_count").default(0).notNull(), // Track sales
+  isDigital: boolean("is_digital").default(true).notNull(),
+  downloadUrl: text("download_url"),
+  licenseKey: text("license_key"),
+  isFeatured: boolean("is_featured").default(false).notNull(),
+  isLimitedEdition: boolean("is_limited_edition").default(false).notNull(),
+  viewCount: integer("view_count").default(0).notNull(),
+  averageRating: decimal("average_rating", { precision: 3, scale: 2 }).default("0.00").notNull(),
+  reviewCount: integer("review_count").default(0).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const productsRelations = relations(products, ({ one, many }) => ({
@@ -95,91 +97,23 @@ export const productsRelations = relations(products, ({ one, many }) => ({
     fields: [products.categoryId],
     references: [categories.id],
   }),
-  reviews: many(reviews),
-  orderItems: many(orderItems),
   cartItems: many(cartItems),
-}));
-
-export const insertProductSchema = createInsertSchema(products).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-  viewCount: true,
-  averageRating: true,
-  reviewCount: true,
-});
-
-export type InsertProduct = z.infer<typeof insertProductSchema>;
-export type Product = typeof products.$inferSelect;
-
-// Orders table
-export const orders = pgTable("orders", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
-  status: varchar("status", { length: 50 }).notNull().default("pending"),
-  stripePaymentIntentId: varchar("stripe_payment_intent_id"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const ordersRelations = relations(orders, ({ one, many }) => ({
-  user: one(users, {
-    fields: [orders.userId],
-    references: [users.id],
-  }),
   orderItems: many(orderItems),
+  reviews: many(reviews),
 }));
 
-export const insertOrderSchema = createInsertSchema(orders).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertOrder = z.infer<typeof insertOrderSchema>;
-export type Order = typeof orders.$inferSelect;
-
-// Order Items table
-export const orderItems = pgTable("order_items", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  orderId: varchar("order_id").references(() => orders.id).notNull(),
-  productId: varchar("product_id").references(() => products.id).notNull(),
-  quantity: integer("quantity").notNull().default(1),
-  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
-  downloadUrl: varchar("download_url"),
-  licenseKey: varchar("license_key"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const orderItemsRelations = relations(orderItems, ({ one }) => ({
-  order: one(orders, {
-    fields: [orderItems.orderId],
-    references: [orders.id],
-  }),
-  product: one(products, {
-    fields: [orderItems.productId],
-    references: [products.id],
-  }),
-}));
-
-export const insertOrderItemSchema = createInsertSchema(orderItems).omit({
-  id: true,
-  createdAt: true,
-});
-
-export type InsertOrderItem = z.infer<typeof insertOrderItemSchema>;
-export type OrderItem = typeof orderItems.$inferSelect;
+export type Product = typeof products.$inferSelect;
+export type InsertProduct = typeof products.$inferInsert;
 
 // Cart Items table
 export const cartItems = pgTable("cart_items", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
-  sessionId: varchar("session_id"),
-  productId: varchar("product_id").references(() => products.id).notNull(),
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+  sessionId: varchar("session_id", { length: 255 }), // For unauthenticated users
+  productId: uuid("product_id").references(() => products.id, { onDelete: "cascade" }).notNull(),
   quantity: integer("quantity").notNull().default(1),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const cartItemsRelations = relations(cartItems, ({ one }) => ({
@@ -193,28 +127,77 @@ export const cartItemsRelations = relations(cartItems, ({ one }) => ({
   }),
 }));
 
-export const insertCartItemSchema = createInsertSchema(cartItems).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
+export type CartItem = typeof cartItems.$inferSelect;
+export type InsertCartItem = typeof cartItems.$inferInsert;
+
+// Orders table
+export const orders = pgTable("orders", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id),
+  sessionId: varchar("session_id", { length: 255 }), // For unauthenticated users
+  orderNumber: varchar("order_number", { length: 50 }).notNull().unique(), // Order number for tracking
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  shippingAddress: jsonb("shipping_address"), // JSON object
+  billingAddress: jsonb("billing_address"), // JSON object
+  paymentMethod: varchar("payment_method", { length: 50 }),
+  paymentStatus: varchar("payment_status", { length: 20 }).notNull().default("pending"),
+  stripePaymentIntentId: varchar("stripe_payment_intent_id", { length: 255 }),
+  notes: text("notes"), // Admin notes
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export type InsertCartItem = z.infer<typeof insertCartItemSchema>;
-export type CartItem = typeof cartItems.$inferSelect;
+export const ordersRelations = relations(orders, ({ one, many }) => ({
+  user: one(users, {
+    fields: [orders.userId],
+    references: [users.id],
+  }),
+  orderItems: many(orderItems),
+}));
+
+export type Order = typeof orders.$inferSelect;
+export type InsertOrder = typeof orders.$inferInsert;
+
+// Order Items table
+export const orderItems = pgTable("order_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orderId: uuid("order_id").references(() => orders.id, { onDelete: "cascade" }).notNull(),
+  productId: uuid("product_id").references(() => products.id, { onDelete: "restrict" }).notNull(),
+  quantity: integer("quantity").notNull(),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const orderItemsRelations = relations(orderItems, ({ one }) => ({
+  order: one(orders, {
+    fields: [orderItems.orderId],
+    references: [orders.id],
+  }),
+  product: one(products, {
+    fields: [orderItems.productId],
+    references: [products.id],
+  }),
+}));
+
+export type OrderItem = typeof orderItems.$inferSelect;
+export type InsertOrderItem = typeof orderItems.$inferInsert;
 
 // Reviews table
 export const reviews = pgTable("reviews", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  productId: varchar("product_id").references(() => products.id).notNull(),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  rating: integer("rating").notNull(),
-  title: varchar("title", { length: 200 }),
+  id: uuid("id").primaryKey().defaultRandom(),
+  productId: uuid("product_id").references(() => products.id, { onDelete: "cascade" }).notNull(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  rating: integer("rating").notNull(), // 1-5
   comment: text("comment"),
-  isVerifiedPurchase: boolean("is_verified_purchase").default(false),
-  helpfulCount: integer("helpful_count").default(0),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+  isVerified: boolean("is_verified").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  // Unique constraint: one review per user per product
+  uniqUserProductReview: uniqueIndex("unique_user_product_review").on(table.productId, table.userId),
+}));
 
 export const reviewsRelations = relations(reviews, ({ one }) => ({
   product: one(products, {
@@ -227,13 +210,13 @@ export const reviewsRelations = relations(reviews, ({ one }) => ({
   }),
 }));
 
-export const insertReviewSchema = createInsertSchema(reviews).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-  helpfulCount: true,
-  isVerifiedPurchase: true,
-});
-
-export type InsertReview = z.infer<typeof insertReviewSchema>;
 export type Review = typeof reviews.$inferSelect;
+export type InsertReview = typeof reviews.$inferInsert;
+
+// Zod schemas for validation
+export const insertProductSchema = createInsertSchema(products);
+export const insertCategorySchema = createInsertSchema(categories);
+export const insertCartItemSchema = createInsertSchema(cartItems);
+export const insertOrderSchema = createInsertSchema(orders);
+export const insertOrderItemSchema = createInsertSchema(orderItems);
+export const insertReviewSchema = createInsertSchema(reviews);

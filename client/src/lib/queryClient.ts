@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { supabase } from "./supabase";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -12,9 +13,30 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  // Only add auth headers for protected endpoints
+  const isProtectedEndpoint = url.includes('/api/auth/') || 
+                             url.includes('/api/cart') || 
+                             url.includes('/api/orders') ||
+                             url.includes('/api/admin');
+  
+  let headers: Record<string, string> = {};
+  
+  if (data) {
+    headers["Content-Type"] = "application/json";
+  }
+  
+  if (isProtectedEndpoint) {
+    // Get the current session token for protected endpoints
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+  }
+
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
@@ -29,7 +51,27 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
+    const url = queryKey.join("/") as string;
+    
+    // Only add auth headers for protected endpoints
+    const isProtectedEndpoint = url.includes('/api/auth/') || 
+                               url.includes('/api/cart') || 
+                               url.includes('/api/orders') ||
+                               url.includes('/api/admin');
+    
+    let headers: Record<string, string> = {};
+    
+    if (isProtectedEndpoint) {
+      // Get the current session token for protected endpoints
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+    }
+
+    const res = await fetch(url, {
+      headers,
       credentials: "include",
     });
 

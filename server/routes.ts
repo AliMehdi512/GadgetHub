@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { storage } from "./simpleStorage";
+import { authenticateUser, requireAdmin } from "./supabaseAuth";
 import {
   insertProductSchema,
   insertCategorySchema,
@@ -13,13 +13,11 @@ import {
 import { randomUUID } from "crypto";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Setup authentication middleware
-  await setupAuth(app);
 
   // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.get('/api/auth/user', authenticateUser, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
       res.json(user);
     } catch (error) {
@@ -31,7 +29,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Product routes
   app.get("/api/products", async (req, res) => {
     try {
-      const products = await storage.getProducts();
+      const categoryId = req.query.categoryId as string;
+      const products = await storage.getProducts(categoryId);
       res.json(products);
     } catch (error: any) {
       res.status(500).json({ message: "Error fetching products: " + error.message });
@@ -66,7 +65,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/products", isAuthenticated, async (req, res) => {
+  app.post("/api/products", authenticateUser, requireAdmin, async (req, res) => {
     try {
       const validatedData = insertProductSchema.parse(req.body);
       const product = await storage.createProduct(validatedData);
@@ -76,7 +75,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/products/:id", isAuthenticated, async (req, res) => {
+  app.put("/api/products/:id", authenticateUser, requireAdmin, async (req, res) => {
     try {
       const product = await storage.updateProduct(req.params.id, req.body);
       res.json(product);
@@ -85,7 +84,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/products/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/products/:id", authenticateUser, requireAdmin, async (req, res) => {
     try {
       await storage.deleteProduct(req.params.id);
       res.status(204).send();
@@ -128,7 +127,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/categories", isAuthenticated, async (req, res) => {
+  app.post("/api/categories", authenticateUser, requireAdmin, async (req, res) => {
     try {
       const validatedData = insertCategorySchema.parse(req.body);
       const category = await storage.createCategory(validatedData);
@@ -141,7 +140,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Cart routes
   app.get("/api/cart", async (req: any, res) => {
     try {
-      const userId = req.isAuthenticated() ? req.user.claims.sub : null;
+      const userId = req.user?.id || null;
       const sessionId = req.sessionID;
       const items = await storage.getCartItems(userId, sessionId);
       res.json(items);
@@ -152,7 +151,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/cart", async (req: any, res) => {
     try {
-      const userId = req.isAuthenticated() ? req.user.claims.sub : null;
+      const userId = req.user?.id || null;
       const sessionId = req.sessionID;
       
       const validatedData = insertCartItemSchema.parse({
@@ -192,7 +191,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/cart", async (req: any, res) => {
     try {
-      const userId = req.isAuthenticated() ? req.user.claims.sub : null;
+      const userId = req.user?.id || null;
       const sessionId = req.sessionID;
       await storage.clearCart(userId, sessionId);
       res.status(204).send();
@@ -202,7 +201,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Order routes
-  app.get("/api/orders", isAuthenticated, async (req: any, res) => {
+  app.get("/api/orders", authenticateUser, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const orders = await storage.getOrders(userId);
@@ -212,7 +211,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/orders/:id", isAuthenticated, async (req, res) => {
+  app.get("/api/orders/:id", authenticateUser, async (req, res) => {
     try {
       const order = await storage.getOrder(req.params.id);
       if (!order) {
@@ -224,7 +223,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/orders/:id/items", isAuthenticated, async (req, res) => {
+  app.get("/api/orders/:id/items", authenticateUser, async (req, res) => {
     try {
       const items = await storage.getOrderItems(req.params.id);
       res.json(items);
@@ -233,16 +232,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/orders", isAuthenticated, async (req: any, res) => {
+  app.post("/api/orders", authenticateUser, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { items, totalAmount, stripePaymentIntentId } = req.body;
+
+      // Generate order number
+      const orderNumber = `GH-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
 
       // Create order
       const validatedOrder = insertOrderSchema.parse({
         userId,
         totalAmount,
         stripePaymentIntentId,
+        orderNumber,
         status: "completed", // For digital products, instant delivery
       });
 
@@ -263,6 +266,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
 
         await storage.createOrderItem(orderItemData);
+
+        // Increment sales count for the product
+        await storage.incrementProductSales(item.productId, item.quantity || 1);
       }
 
       // Clear cart after successful order
@@ -284,7 +290,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/reviews", isAuthenticated, async (req: any, res) => {
+  app.post("/api/reviews", authenticateUser, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const validatedData = insertReviewSchema.parse({
@@ -322,6 +328,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res
         .status(500)
         .json({ message: "Error creating payment intent: " + error.message });
+    }
+  });
+
+  // Admin routes
+  app.get("/api/admin/stats", authenticateUser, requireAdmin, async (req: any, res) => {
+    try {
+
+      const [
+        totalUsers,
+        totalProducts,
+        totalOrders,
+        totalRevenue,
+        pendingOrders,
+        processingOrders,
+        deliveredOrders
+      ] = await Promise.all([
+        storage.getUserCount(),
+        storage.getProductCount(),
+        storage.getOrderCount(),
+        storage.getTotalRevenue(),
+        storage.getOrderCountByStatus('pending'),
+        storage.getOrderCountByStatus('processing'),
+        storage.getOrderCountByStatus('delivered')
+      ]);
+
+      res.json({
+        totalUsers,
+        totalProducts,
+        totalOrders,
+        totalRevenue,
+        pendingOrders,
+        processingOrders,
+        deliveredOrders
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Error fetching admin stats: " + error.message });
+    }
+  });
+
+  app.get("/api/admin/products", authenticateUser, requireAdmin, async (req: any, res) => {
+    try {
+
+      const products = await storage.getAllProducts();
+      res.json(products);
+    } catch (error: any) {
+      res.status(500).json({ message: "Error fetching products: " + error.message });
+    }
+  });
+
+  app.get("/api/admin/orders", authenticateUser, requireAdmin, async (req: any, res) => {
+    try {
+
+      const orders = await storage.getAllOrders();
+      res.json(orders);
+    } catch (error: any) {
+      res.status(500).json({ message: "Error fetching orders: " + error.message });
+    }
+  });
+
+  app.get("/api/admin/users", authenticateUser, requireAdmin, async (req: any, res) => {
+    try {
+
+      const users = await storage.getAllUsers();
+      res.json(users);
+    } catch (error: any) {
+      res.status(500).json({ message: "Error fetching users: " + error.message });
+    }
+  });
+
+  app.put("/api/admin/orders/:id/status", authenticateUser, requireAdmin, async (req: any, res) => {
+    try {
+
+      const { id } = req.params;
+      const { status } = req.body;
+
+      await storage.updateOrderStatus(id, status);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: "Error updating order status: " + error.message });
+    }
+  });
+
+  app.put("/api/admin/products/:id", authenticateUser, requireAdmin, async (req: any, res) => {
+    try {
+
+      const { id } = req.params;
+      const productData = req.body;
+
+      const updatedProduct = await storage.updateProduct(id, productData);
+      res.json(updatedProduct);
+    } catch (error: any) {
+      res.status(500).json({ message: "Error updating product: " + error.message });
     }
   });
 

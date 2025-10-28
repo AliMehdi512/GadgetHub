@@ -1,15 +1,20 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
+import { createClient } from '@supabase/supabase-js';
 import * as schema from "@shared/schema";
 
-neonConfig.webSocketConstructor = ws;
+// Initialize Supabase connection
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
-if (!process.env.DATABASE_URL) {
+if (!supabaseUrl || !supabaseServiceKey) {
   throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
+    'Supabase environment variables are required. ' +
+    'Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.'
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle({ client: pool, schema });
+// Create the Supabase client
+export const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+// For now, we'll use Supabase client directly instead of Drizzle
+// This avoids the need for direct PostgreSQL connection
+export const db = supabase;

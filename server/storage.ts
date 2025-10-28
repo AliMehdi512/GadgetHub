@@ -25,8 +25,10 @@ import { db } from "./db";
 import { eq, desc, and, sql } from "drizzle-orm";
 
 export interface IStorage {
-  // User operations (required for Replit Auth)
+  // User operations (required for local auth)
   getUser(id: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  createLocalUser(userData: { email: string; firstName: string; lastName: string }): Promise<User>;
   upsertUser(user: UpsertUser): Promise<User>;
 
   // Product operations
@@ -72,18 +74,35 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async upsertUser(userData: UpsertUser): Promise<User> {
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async createLocalUser(userData: { email: string; firstName: string; lastName: string }): Promise<User> {
     const [user] = await db
       .insert(users)
-      .values(userData)
-      .onConflictDoUpdate({
-        target: users.id,
-        set: {
-          ...userData,
-          updatedAt: new Date(),
-        },
+      .values({
+        email: userData.email,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
       })
       .returning();
+    return user;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+      const [user] = await db
+        .insert(users)
+        .values(userData)
+        .onConflictDoUpdate({
+          target: users.id,
+          set: {
+            ...userData,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
     return user;
   }
 
@@ -304,6 +323,85 @@ export class DatabaseStorage implements IStorage {
         })
         .where(eq(products.id, productId));
     }
+  }
+
+  // Admin methods
+  async getUserCount(): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` }).from(users);
+    return result[0]?.count || 0;
+  }
+
+  async getProductCount(): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` }).from(products);
+    return result[0]?.count || 0;
+  }
+
+  async getOrderCount(): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` }).from(orders);
+    return result[0]?.count || 0;
+  }
+
+  async getTotalRevenue(): Promise<number> {
+    const result = await db
+      .select({ total: sql<number>`sum(total_amount)` })
+      .from(orders)
+      .where(eq(orders.status, 'delivered'));
+    return result[0]?.total || 0;
+  }
+
+  async getOrderCountByStatus(status: string): Promise<number> {
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(orders)
+      .where(eq(orders.status, status));
+    return result[0]?.count || 0;
+  }
+
+  async getAllProducts(): Promise<Product[]> {
+    return await db
+      .select()
+      .from(products)
+      .orderBy(desc(products.createdAt));
+  }
+
+  async getAllOrders(): Promise<Order[]> {
+    return await db
+      .select()
+      .from(orders)
+      .orderBy(desc(orders.createdAt));
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db
+      .select()
+      .from(users)
+      .orderBy(desc(users.createdAt));
+  }
+
+  async updateOrderStatus(orderId: string, status: string): Promise<void> {
+    await db
+      .update(orders)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(orders.id, orderId));
+  }
+
+  async updateProduct(productId: string, productData: Partial<Product>): Promise<Product> {
+    const [updatedProduct] = await db
+      .update(products)
+      .set({ ...productData, updatedAt: new Date() })
+      .where(eq(products.id, productId))
+      .returning();
+    return updatedProduct;
+  }
+
+  async incrementProductSales(productId: string, quantity: number): Promise<void> {
+    await db
+      .update(products)
+      .set({ 
+        salesCount: sql`${products.salesCount} + ${quantity}`,
+        updatedAt: new Date()
+      })
+      .where(eq(products.id, productId));
   }
 }
 
